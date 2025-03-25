@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>可交互卡片笔记</title>
+    <style>
+        /* 完整卡片样式 */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .card-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 20px;
+            width: 300px;
+            min-height: 200px;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+        /* 新增收纳动画相关样式 */
+        .card-container {
+            position: relative;
+            transition: all 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+
+        .card {
+            transition: all 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55),
+                        transform 0.3s ease;
+            will-change: transform, top, left;
+        }
+
+        /* 收纳状态 */
+        .collapsed-mode .card {
+            position: absolute !important;
+            width: 60px !important;
+            height: 60px !important;
+            opacity: 0.8;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        .collapsed-mode .card:hover {
+            transform: scale(1.2) !important;
+            z-index: 2;
+            opacity: 1;
+        }
+
+        /* 收纳指示器 */
+        #collapseTrigger {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: #007bff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+
+        #collapseTrigger:hover {
+            transform: scale(1.2);
+            background: #0056b3;
+        }
+       /* 新增折叠功能相关样式 */
+        .card-content {
+            color: #666;
+            line-height: 1.6;
+            font-size: 0.9em;
+            overflow: hidden;
+            position: relative;
+            flex-grow: 1;
+        }
+
+        /* 折叠状态 */
+        .collapsed {
+            max-height: 100px;
+            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+        }
+
+        /* 展开状态 */
+        .expanded {
+            max-height: none;
+            -webkit-mask-image: none;
+            mask-image: none;
+        }
+
+        /* 展开/收起按钮 */
+        .toggle-btn {
+            color: #007bff;
+            font-size: 0.8em;
+            cursor: pointer;
+            text-align: right;
+            padding-top: 5px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .card-title {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            overflow: hidden; /* 新增清除浮动 */
+        }
+
+        .card-content {
+            color: #666;
+            line-height: 1.6;
+            font-size: 0.9em;
+            margin-bottom: 40px; /* 给日期留出空间 */
+        }
+
+        .tags {
+            position: absolute;
+            bottom: 15px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .tag {
+            background: #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .date {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            font-size: 0.8em;
+            color: #999;
+        }
+
+        /* 表单样式 */
+        .note-creator {
+            background: white;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        /* 删除按钮 */
+        .delete-btn {
+            float: right;
+            cursor: pointer;
+            color: #999;
+            font-size: 1.5em;
+            line-height: 1;
+            padding-left: 10px;
+        }
+        .delete-btn:hover {
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="note-creator">
+        <div class="input-group">
+            <input type="text" id="noteTitle" placeholder="笔记标题">
+        </div>
+        <div class="input-group">
+            <textarea id="noteContent" rows="3" placeholder="笔记内容"></textarea>
+        </div>
+        <div class="input-group">
+            <input type="text" id="noteTags" placeholder="标签（逗号分隔）">
+        </div>
+        <button onclick="addNewNote()">➕ 添加卡片</button>
+    </div>
+
+    <div class="card-container" id="cardContainer"></div>
+    <div id="collapseTrigger" onclick="toggleCollapseMode()"></div>
+    <script>
+     const DB_NAME = 'notesDB';
+    const DB_VERSION = 1;
+    let db;
+
+    // 初始化数据库
+    function initDB() {
+        let request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = function(event) {
+            db = event.target.result;
+            // 创建对象仓库，keyPath 为 id 且自动递增
+            let store = db.createObjectStore('notes', { keyPath: 'id', autoIncrement: true });
+            // 可根据需求创建索引，如按标题或日期查询
+            store.createIndex('title', 'title', { unique: false });
+            store.createIndex('date', 'date', { unique: false });
+            console.log('数据库升级完成，创建了对象仓库');
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            console.log('数据库初始化成功');
+            // 数据库初始化后加载数据
+            loadNotes();
+        };
+
+        request.onerror = function(event) {
+            console.error('数据库打开失败', event);
+        };
+    }
+
+    // 加载所有笔记
+    function loadNotes() {
+        let transaction = db.transaction('notes', 'readonly');
+        let store = transaction.objectStore('notes');
+        let request = store.getAll();
+
+        request.onsuccess = function(event) {
+            let notes = event.target.result;
+            // 将 notes 数据传给渲染函数
+            renderCards(notes);
+        };
+
+        request.onerror = function(event) {
+            console.error('获取数据失败', event);
+        };
+    }
+
+    // 添加新笔记
+    function addNewNote() {
+        const title = document.getElementById('noteTitle').value;
+        const content = document.getElementById('noteContent').value;
+        const tags = document.getElementById('noteTags').value.split(',');
+
+        if (!title || !content) {
+            alert("请填写标题和内容");
+            return;
+        }
+
+        const note = {
+            title,
+            content,
+            tags: tags.filter(t => t.trim()),
+            date: new Date().toISOString().slice(0,10),
+            expanded: false
+        };
+
+        let transaction = db.transaction('notes', 'readwrite');
+        let store = transaction.objectStore('notes');
+        let request = store.add(note);
+
+        request.onsuccess = function() {
+            console.log('笔记添加成功');
+            loadNotes();
+            clearForm();
+        };
+
+        request.onerror = function(event) {
+            console.error('添加笔记失败', event);
+        };
+    }
+
+    // 删除笔记，根据 id 删除
+    function deleteNote(id) {
+        let transaction = db.transaction('notes', 'readwrite');
+        let store = transaction.objectStore('notes');
+        let request = store.delete(id);
+
+        request.onsuccess = function() {
+            console.log('笔记删除成功');
+            loadNotes();
+        };
+
+        request.onerror = function(event) {
+            console.error('删除笔记失败', event);
+        };
+    }
+
+    // 切换笔记展开/收起状态
+    function toggleExpand(id) {
+        // 先获取对应笔记，然后修改 expanded 属性后再更新数据库
+        let transaction = db.transaction('notes', 'readwrite');
+        let store = transaction.objectStore('notes');
+        let request = store.get(id);
+
+        request.onsuccess = function(event) {
+            let note = event.target.result;
+            note.expanded = !note.expanded;
+            let updateRequest = store.put(note);
+
+            updateRequest.onsuccess = function() {
+                loadNotes();
+            };
+        };
+
+        request.onerror = function(event) {
+            console.error('获取笔记失败', event);
+        };
+    }
+
+    // 清空表单
+    function clearForm() {
+        document.getElementById('noteTitle').value = '';
+        document.getElementById('noteContent').value = '';
+        document.getElementById('noteTags').value = '';
+    }
+
+    // 渲染卡片（与原来的 localStorage 版本类似，只不过数据来源于 indexedDB）
+    function renderCards(notes = []) {
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = notes.map(note => `
+        <div class="card" onclick="toggleExpand(${note.id})">
+            <div class="card-title">
+                ${note.title}
+                <span class="delete-btn" onclick="event.stopPropagation(); deleteNote(${note.id})">×</span>
+            </div>
+            <div class="card-content ${note.expanded ? 'expanded' : 'collapsed'}">
+                ${note.content.replace(/\n/g, '<br>')}
+            </div>
+            <div class="tags">
+                ${note.tags.map(t => `<span class="tag">${t.trim()}</span>`).join('')}
+            </div>
+            <div class="date">${note.date}</div>
+            <div class="toggle-btn">${note.expanded ? '收起△' : '展开▼'}</div>
+        </div>
+    `).join('');
+   }
+
+    // 初始化数据库后即可使用 indexedDB 进行数据存储
+    initDB();
+
+       // 新增收纳系统
+        let isCollapsed = false;
+        let originalPositions = [];
+
+        function toggleCollapseMode() {
+            isCollapsed = !isCollapsed;
+            document.body.classList.toggle('collapsed-mode');
+
+            if(isCollapsed) {
+                // 记录原始位置
+                originalPositions = [];
+                const cards = document.querySelectorAll('.card');
+                const containerRect = document.querySelector('.card-container').getBoundingClientRect();
+
+                cards.forEach((card, index) => {
+                    const rect = card.getBoundingClientRect();
+                    originalPositions.push({
+                        x: rect.left - containerRect.left,
+                        y: rect.top - containerRect.top,
+                        width: card.offsetWidth,
+                        height: card.offsetHeight
+                    });
+
+                    // 计算收纳位置
+                    const row = Math.floor(index / 5); // 每行5个
+                    const col = index % 5;
+                    
+                    card.style.left = `${col * 70}px`;
+                    card.style.top = `${row * 70}px`;
+                });
+            } else {
+                // 恢复原始布局
+                const cards = document.querySelectorAll('.card');
+                cards.forEach((card, index) => {
+                    card.style.left = `${originalPositions[index].x}px`;
+                    card.style.top = `${originalPositions[index].y}px`;
+                    card.style.width = `${originalPositions[index].width}px`;
+                    card.style.height = `${originalPositions[index].height}px`;
+                });
+            }
+        }
+
+        // 点击收纳的卡片恢复布局
+        document.addEventListener('click', (e) => {
+            if(isCollapsed && e.target.closest('.card')) {
+                toggleCollapseMode();
+            }
+        }, true);
+        // 初始渲染
+        renderCards();
+    </script>
+</body>
+</html>
